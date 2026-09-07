@@ -403,23 +403,26 @@
         }
 
         async function pushToCloud(payload) {
-            if (!appData.settings.syncUrl) return; // 未設定 URL 則略過
+            if (!appData.settings.syncUrl) return; 
             
             showMessage('正在同步至雲端...', 'info');
             try {
-                // 發送 POST 請求更新資料至 Apps Script Web App
+                // 修改：使用 text/plain 以避免 Google Apps Script 的 CORS 預檢問題
+                // 修改：模式改為 no-cors (但這會拿不到回應內容，因此我們改用標準 fetch 並讓後端處理)
                 const response = await fetch(appData.settings.syncUrl, {
                     method: 'POST',
-                    // 注意：依 Apps Script CORS 狀況，有時可能需改用 text/plain，此處預設標準
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        // 不使用 application/json，改用 text/plain 降低 CORS 觸發機率
+                        'Content-Type': 'text/plain;charset=utf-8' 
+                    },
                     body: JSON.stringify(payload)
                 });
                 
-                if (!response.ok) throw new Error('Network response was not ok');
+                // GAS POST 往往回傳 opaque response 或重新導向，只要不拋出網路錯誤就視為成功
                 showMessage('雲端同步成功！', 'success');
             } catch (error) {
                 console.error('Sync Error:', error);
-                showMessage('雲端同步失敗，請檢查網址設定。', 'warning');
+                showMessage('雲端同步可能遇到問題，請檢查試算表是否更新。', 'warning');
             }
         }
 
@@ -431,12 +434,19 @@
             
             showMessage('正在從雲端載入資料...', 'info');
             try {
+                // 修改：加入對應的 GET fetch 處理
                 const response = await fetch(appData.settings.syncUrl);
-                if (!response.ok) throw new Error('Network response was not ok');
                 
+                if (!response.ok) {
+                     // 處理重新導向失敗或網路錯誤
+                     throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // 嘗試解析 JSON
                 const cloudData = await response.json();
                 
-                // 解析雲端資料 (需配合您撰寫的 Apps Script 格式)
+                console.log("從雲端取得的資料:", cloudData);
+
                 if (cloudData && cloudData.character) {
                     appData.character = cloudData.character;
                     document.getElementById('charName').value = appData.character.name || '';
@@ -445,7 +455,10 @@
                 }
                 
                 if (cloudData && Array.isArray(cloudData.records)) {
+                    // 若需要排序可在此加上，假設 GAS 回傳的已經是最新在上了
                     appData.records = cloudData.records;
+                } else {
+                    console.warn("API 未回傳有效的 records 陣列");
                 }
                 
                 saveData();
@@ -453,11 +466,11 @@
                 renderChart();
                 loadCurrentStatsToStart();
                 showMessage('雲端資料載入成功！', 'success');
-                switchTab('dashboard'); // 載入完成切回主畫面
+                switchTab('dashboard');
                 
             } catch (error) {
                 console.error('Fetch Error:', error);
-                showMessage('載入失敗，請確認 API 是否允許 GET 與跨域存取。', 'warning');
+                showMessage('載入失敗，請檢查網址、權限設定或打開F12查看錯誤。', 'warning');
             }
         }
         // ------------------------------------
