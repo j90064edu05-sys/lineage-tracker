@@ -407,22 +407,22 @@
             
             showMessage('正在同步至雲端...', 'info');
             try {
-                // 修改：使用 text/plain 以避免 Google Apps Script 的 CORS 預檢問題
-                // 修改：模式改為 no-cors (但這會拿不到回應內容，因此我們改用標準 fetch 並讓後端處理)
+                // 修改：增加 redirect 和 cache 設定，以適應手機瀏覽器
                 const response = await fetch(appData.settings.syncUrl, {
                     method: 'POST',
+                    redirect: 'follow', // 強制手機瀏覽器跟隨 GAS 的跳轉
+                    cache: 'no-cache',
                     headers: { 
-                        // 不使用 application/json，改用 text/plain 降低 CORS 觸發機率
                         'Content-Type': 'text/plain;charset=utf-8' 
                     },
                     body: JSON.stringify(payload)
                 });
                 
-                // GAS POST 往往回傳 opaque response 或重新導向，只要不拋出網路錯誤就視為成功
                 showMessage('雲端同步成功！', 'success');
             } catch (error) {
                 console.error('Sync Error:', error);
-                showMessage('雲端同步可能遇到問題，請檢查試算表是否更新。', 'warning');
+                // 在手機上直接印出錯誤訊息，方便除錯
+                showMessage(`雲端同步問題: ${error.message || '連線失敗'}`, 'warning');
             }
         }
 
@@ -434,12 +434,18 @@
             
             showMessage('正在從雲端載入資料...', 'info');
             try {
-                // 修改：加入對應的 GET fetch 處理
-                const response = await fetch(appData.settings.syncUrl);
+                // 修改：加入明確的 GET 參數，解決手機版 Safari/Chrome 的跳轉與快取問題
+                const response = await fetch(appData.settings.syncUrl, {
+                    method: 'GET',
+                    redirect: 'follow', // 允許追隨 GAS 的 302 重新導向
+                    cache: 'no-cache',  // 避免手機瀏覽器抓到舊的快取
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
                 
                 if (!response.ok) {
-                     // 處理重新導向失敗或網路錯誤
-                     throw new Error(`HTTP error! status: ${response.status}`);
+                     throw new Error(`HTTP 錯誤狀態: ${response.status}`);
                 }
                 
                 // 嘗試解析 JSON
@@ -470,7 +476,8 @@
                 
             } catch (error) {
                 console.error('Fetch Error:', error);
-                showMessage('載入失敗，請檢查網址、權限設定或打開F12查看錯誤。', 'warning');
+                // 將實際錯誤印在畫面上，讓手機也能看到具體原因
+                showMessage(`載入失敗: ${error.message || '網路異常'}`, 'warning');
             }
         }
         // ------------------------------------
