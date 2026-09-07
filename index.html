@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天堂-經典版 角色成長追蹤系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Serif TC', serif;
+            background-color: #1a1a1a;
+            background-image: radial-gradient(circle at center, #2a2a2a 0%, #111 100%);
+            color: #e0e0e0;
+        }
+
+        .panel-bg {
+            background-color: rgba(20, 20, 20, 0.85);
+            border: 2px solid #5a4f3b; /* 仿舊金屬色框 */
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.7) inset, 0 0 10px rgba(90, 79, 59, 0.3);
+        }
+
+        .header-title {
+            color: #d4af37; /* 金黃色 */
+            text-shadow: 1px 1px 2px #000, 0 0 5px #d4af37;
+            font-weight: bold;
+            border-bottom: 1px solid #5a4f3b;
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .input-field {
+            background-color: #2c2c2c;
+            border: 1px solid #4a4a4a;
+            color: #fff;
+            padding: 0.5rem;
+            width: 100%;
+            border-radius: 4px;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #d4af37;
+            box-shadow: 0 0 5px rgba(212, 175, 55, 0.5);
+        }
+
+        .btn-primary {
+            background: linear-gradient(to bottom, #6b1b1b, #3a0f0f);
+            border: 1px solid #8f2424;
+            color: #ffd700;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(to bottom, #8a2525, #4d1515);
+            border-color: #a53232;
+        }
+
+        .btn-danger {
+            background: linear-gradient(to bottom, #4a4a4a, #2a2a2a);
+            border: 1px solid #666;
+            color: #ccc;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(to bottom, #555, #333);
+            color: #fff;
+        }
+
+        /* 隱藏預設捲軸，使用細緻捲軸 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #5a4f3b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d4af37;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl md:text-5xl text-[#d4af37] font-bold tracking-wider" style="text-shadow: 2px 2px 4px #000, 0 0 10px #d4af37;">
+                天堂-經典版 成長追蹤器
+            </h1>
+            <p class="text-gray-400 mt-2 text-sm">Lineage Classic Progression Tracker</p>
+        </header>
+
+        <!-- 新增頁籤導覽 -->
+        <div class="flex justify-center space-x-4 mb-6">
+            <button onclick="switchTab('dashboard')" id="navDashboard" class="btn-primary ring-2 ring-[#d4af37]">主控台</button>
+            <button onclick="switchTab('settings')" id="navSettings" class="btn-primary opacity-70 hover:opacity-100 transition-opacity">雲端同步設定</button>
+        </div>
+
+        <div id="view-dashboard" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-1 space-y-6">
+                
+                <!-- 角色基本設定 -->
+                <div class="panel-bg p-5 rounded-lg">
+                    <h2 class="header-title text-xl">角色資訊</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">角色名稱</label>
+                            <input type="text" id="charName" class="input-field" placeholder="例如: 死騎殺手">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-300 mb-1">目前等級</label>
+                                <input type="number" id="currentLevel" class="input-field" min="1" value="48">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-300 mb-1">目前 EXP (%)</label>
+                                <input type="number" id="currentExp" class="input-field" min="0" max="99.9999" step="0.0001" value="12.3456">
+                            </div>
+                        </div>
+                        <button onclick="saveCharacterInfo()" class="btn-primary w-full mt-2">儲存角色資訊</button>
+                    </div>
+                </div>
+
+                <!-- 新增練功紀錄 -->
+                <div class="panel-bg p-5 rounded-lg">
+                    <h2 class="header-title text-xl flex justify-between items-end">
+                        <span>新增練功紀錄</span>
+                        <button type="button" onclick="loadCurrentStatsToStart()" class="text-xs btn-primary py-1 px-2 border border-[#d4af37]">載入目前狀態</button>
+                    </h2>
+                    <form id="recordForm" onsubmit="addRecord(event)" class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">練功地點 (選填)</label>
+                            <input type="text" id="location" class="input-field" placeholder="例如: 龍之谷、遺忘之島">
+                        </div>
+                        
+                        <!-- Before & After Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border border-[#4a4a4a] p-3 rounded bg-[#222]">
+                            <!-- Start -->
+                            <div class="space-y-3">
+                                <h3 class="text-[#d4af37] border-b border-[#4a4a4a] pb-1 font-bold">開始 (Before)</h3>
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">開始時間</label>
+                                    <input type="datetime-local" id="startTime" class="input-field text-sm" required>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-xs text-gray-400 mb-1">等級</label>
+                                        <input type="number" id="startLevel" class="input-field text-sm" min="1" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-400 mb-1">EXP (%)</label>
+                                        <input type="number" id="startExp" class="input-field text-sm" min="0" max="99.9999" step="0.0001" required>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">身上金幣</label>
+                                    <input type="number" id="startAdena" class="input-field text-sm" required>
+                                </div>
+                            </div>
+                            <!-- End -->
+                            <div class="space-y-3">
+                                <h3 class="text-[#d4af37] border-b border-[#4a4a4a] pb-1 font-bold">結束 (After)</h3>
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">結束時間</label>
+                                    <input type="datetime-local" id="endTime" class="input-field text-sm" required>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-xs text-gray-400 mb-1">等級</label>
+                                        <input type="number" id="endLevel" class="input-field text-sm" min="1" required>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-400 mb-1">EXP (%)</label>
+                                        <input type="number" id="endExp" class="input-field text-sm" min="0" max="99.9999" step="0.0001" required>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-400 mb-1">身上金幣</label>
+                                    <input type="number" id="endAdena" class="input-field text-sm" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">備註 (花費水錢等)</label>
+                            <input type="text" id="note" class="input-field" placeholder="例如: 喝了500瓶紅水">
+                        </div>
+                        <button type="submit" class="btn-primary w-full mt-2 flex justify-center items-center">
+                            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            計算並新增紀錄
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- 統計數據看板 -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="panel-bg p-4 rounded-lg text-center flex flex-col justify-center">
+                        <h3 class="text-gray-400 text-sm mb-1">總練功時數</h3>
+                        <p class="text-3xl text-white font-bold"><span id="statTotalHours">0</span> <span class="text-lg">小時</span></p>
+                    </div>
+                    <div class="panel-bg p-4 rounded-lg text-center flex flex-col justify-center border-l-4 border-l-blue-600">
+                        <h3 class="text-gray-400 text-sm mb-1">平均每小時 EXP</h3>
+                        <p class="text-2xl text-blue-400 font-bold">↑ <span id="statExpPerHour">0.0000</span>%</p>
+                        <p class="text-xs text-gray-500 mt-1">升級還需 <span id="statTimeToUpperLevel" class="text-gray-300">--</span> 小時</p>
+                    </div>
+                    <div class="panel-bg p-4 rounded-lg text-center flex flex-col justify-center border-l-4 border-l-yellow-600">
+                        <h3 class="text-gray-400 text-sm mb-1">平均每小時天幣</h3>
+                        <p class="text-2xl text-[#d4af37] font-bold">+ <span id="statAdenaPerHour">0</span></p>
+                    </div>
+                </div>
+
+                <!-- 圖表區 -->
+                <div class="panel-bg p-5 rounded-lg">
+                    <h2 class="header-title text-xl flex justify-between items-center">
+                        <span>成長趨勢圖</span>
+                        <div class="flex space-x-2 text-sm">
+                            <button onclick="switchChart('exp')" id="btnChartExp" class="px-3 py-1 rounded bg-[#d4af37] text-black font-bold">EXP</button>
+                            <button onclick="switchChart('adena')" id="btnChartAdena" class="px-3 py-1 rounded bg-gray-700 text-gray-300 hover:bg-gray-600">金幣</button>
+                        </div>
+                    </h2>
+                    <div class="w-full h-64">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 紀錄列表 -->
+                <div class="panel-bg p-5 rounded-lg">
+                    <div class="flex justify-between items-center border-bottom mb-4">
+                        <h2 class="header-title text-xl mb-0 border-0 pb-0">練功日誌</h2>
+                        <button onclick="clearAllRecords()" class="text-xs text-red-400 hover:text-red-300 border border-red-800 px-2 py-1 rounded">清空紀錄</button>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm text-gray-300">
+                            <thead class="bg-[#2a2a2a] text-gray-400 uppercase">
+                                <tr>
+                                    <th scope="col" class="px-4 py-2 rounded-tl-lg">時間</th>
+                                    <th scope="col" class="px-4 py-2">地點</th>
+                                    <th scope="col" class="px-4 py-2">時數</th>
+                                    <th scope="col" class="px-4 py-2">獲得 EXP</th>
+                                    <th scope="col" class="px-4 py-2">獲得天幣</th>
+                                    <th scope="col" class="px-4 py-2">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recordTableBody" class="divide-y divide-[#4a4a4a]">
+                                <!-- 紀錄會動態生成於此 -->
+                                <tr>
+                                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">尚無練功紀錄，請由左側新增。</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 新增設定頁籤內容 -->
+        <div id="view-settings" class="hidden">
+            <div class="max-w-2xl mx-auto panel-bg p-6 rounded-lg space-y-6">
+                <h2 class="header-title text-2xl">Google Apps Script 同步設定</h2>
+                <div class="text-sm text-gray-300 space-y-2 bg-[#222] p-4 border border-[#4a4a4a] rounded leading-relaxed">
+                    <p class="text-yellow-400 font-bold mb-2">⚠️ 關於雲端同步：</p>
+                    <p>因跨域與安全性限制，網頁無法直接讀寫 Google Form。請使用 <strong>Google Apps Script (Web App)</strong> 來綁定 Google 試算表達成同步功能。</p>
+                    <p class="mt-2 text-xs text-gray-400 border-t border-gray-700 pt-2">開發者指南：您的 Web App 需支援接收 <code>GET</code> 請求(回傳角色與紀錄的 JSON 格式)，以及支援 <code>POST</code> 請求(接收新增紀錄的 payload 資料)。</p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Web App API 網址 (URL)</label>
+                    <input type="url" id="syncUrl" class="input-field" placeholder="https://script.google.com/macros/s/....../exec">
+                </div>
+                
+                <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                    <button onclick="saveSyncSettings()" class="btn-primary flex-1 py-3">儲存設定</button>
+                    <button onclick="pullFromCloud()" class="btn-primary flex-1 py-3 bg-gradient-to-b from-blue-700 to-blue-900 border-blue-500 text-white">從雲端讀取覆蓋</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="messageBox" class="fixed bottom-4 right-4 bg-gray-800 border-l-4 border-blue-500 text-white p-4 rounded shadow-lg transform transition-transform duration-300 translate-y-full opacity-0 flex items-center z-50">
+        <svg class="w-6 h-6 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span id="messageText">訊息</span>
+    </div>
+
+    <script>
+        // 狀態管理
+        let appData = {
+            character: {
+                name: '',
+                level: 48,
+                exp: 0.0000
+            },
+            records: [], // { id, date, location, duration, exp, adena, note }
+            settings: {
+                syncUrl: '' // 新增儲存 API URL
+            }
+        };
+
+        let chartInstance = null;
+        let currentChartType = 'exp'; // 'exp' 或 'adena'
+
+        // 格式化數字 (加入千分位)
+        const formatNumber = (num) => {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        };
+
+        // 格式化時間
+        const formatDate = (dateString) => {
+            const date = new Date(dateString);
+            return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+        };
+
+        // 載入目前角色狀態到「開始(Before)」表單
+        function loadCurrentStatsToStart() {
+            const now = new Date();
+            // 處理時區偏移，確保 datetime-local 顯示正確當地時間
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('startTime').value = now.toISOString().slice(0, 16);
+            
+            document.getElementById('startLevel').value = appData.character.level;
+            document.getElementById('startExp').value = appData.character.exp;
+            
+            // 嘗試載入最後一次紀錄的結束金幣
+            if (appData.records.length > 0 && appData.records[0].endAdena !== undefined) {
+                document.getElementById('startAdena').value = appData.records[0].endAdena;
+            } else {
+                document.getElementById('startAdena').value = 0;
+            }
+        }
+
+        function initApp() {
+            loadData();
+            updateUI();
+            initChart();
+            renderChart();
+            loadCurrentStatsToStart();
+        }
+
+        function loadData() {
+            const savedData = localStorage.getItem('lineageTrackerData');
+            if (savedData) {
+                const parsed = JSON.parse(savedData);
+                appData.character = parsed.character || appData.character;
+                appData.records = parsed.records || [];
+                appData.settings = parsed.settings || appData.settings;
+                
+                // 填入表單
+                document.getElementById('charName').value = appData.character.name || '';
+                document.getElementById('currentLevel').value = appData.character.level || 48;
+                document.getElementById('currentExp').value = appData.character.exp || 0;
+                
+                if(document.getElementById('syncUrl')) {
+                    document.getElementById('syncUrl').value = appData.settings.syncUrl || '';
+                }
+            }
+        }
+
+        // --- 新增：頁籤切換與雲端同步邏輯 ---
+        function switchTab(tabId) {
+            const dashboard = document.getElementById('view-dashboard');
+            const settings = document.getElementById('view-settings');
+            const navDashboard = document.getElementById('navDashboard');
+            const navSettings = document.getElementById('navSettings');
+
+            if (tabId === 'dashboard') {
+                dashboard.classList.remove('hidden');
+                settings.classList.add('hidden');
+                navDashboard.classList.add('ring-2', 'ring-[#d4af37]');
+                navDashboard.classList.remove('opacity-70');
+                navSettings.classList.remove('ring-2', 'ring-[#d4af37]');
+                navSettings.classList.add('opacity-70');
+            } else {
+                dashboard.classList.add('hidden');
+                settings.classList.remove('hidden');
+                navSettings.classList.add('ring-2', 'ring-[#d4af37]');
+                navSettings.classList.remove('opacity-70');
+                navDashboard.classList.remove('ring-2', 'ring-[#d4af37]');
+                navDashboard.classList.add('opacity-70');
+            }
+        }
+
+        function saveSyncSettings() {
+            appData.settings.syncUrl = document.getElementById('syncUrl').value.trim();
+            saveData();
+            showMessage('同步設定已儲存', 'success');
+        }
+
+        async function pushToCloud(payload) {
+            if (!appData.settings.syncUrl) return; // 未設定 URL 則略過
+            
+            showMessage('正在同步至雲端...', 'info');
+            try {
+                // 發送 POST 請求更新資料至 Apps Script Web App
+                const response = await fetch(appData.settings.syncUrl, {
+                    method: 'POST',
+                    // 注意：依 Apps Script CORS 狀況，有時可能需改用 text/plain，此處預設標準
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) throw new Error('Network response was not ok');
+                showMessage('雲端同步成功！', 'success');
+            } catch (error) {
+                console.error('Sync Error:', error);
+                showMessage('雲端同步失敗，請檢查網址設定。', 'warning');
+            }
+        }
+
+        async function pullFromCloud() {
+            if (!appData.settings.syncUrl) {
+                showMessage('請先輸入並儲存 API 網址', 'warning');
+                return;
+            }
+            
+            showMessage('正在從雲端載入資料...', 'info');
+            try {
+                const response = await fetch(appData.settings.syncUrl);
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const cloudData = await response.json();
+                
+                // 解析雲端資料 (需配合您撰寫的 Apps Script 格式)
+                if (cloudData && cloudData.character) {
+                    appData.character = cloudData.character;
+                    document.getElementById('charName').value = appData.character.name || '';
+                    document.getElementById('currentLevel').value = appData.character.level || 48;
+                    document.getElementById('currentExp').value = appData.character.exp || 0;
+                }
+                
+                if (cloudData && Array.isArray(cloudData.records)) {
+                    appData.records = cloudData.records;
+                }
+                
+                saveData();
+                updateUI();
+                renderChart();
+                loadCurrentStatsToStart();
+                showMessage('雲端資料載入成功！', 'success');
+                switchTab('dashboard'); // 載入完成切回主畫面
+                
+            } catch (error) {
+                console.error('Fetch Error:', error);
+                showMessage('載入失敗，請確認 API 是否允許 GET 與跨域存取。', 'warning');
+            }
+        }
+        // ------------------------------------
+
+        function saveData() {
+            localStorage.setItem('lineageTrackerData', JSON.stringify(appData));
+        }
+
+        function saveCharacterInfo() {
+            appData.character.name = document.getElementById('charName').value;
+            appData.character.level = parseInt(document.getElementById('currentLevel').value);
+            appData.character.exp = parseFloat(document.getElementById('currentExp').value);
+            saveData();
+            updateUI();
+            loadCurrentStatsToStart(); // 更新設定後同步更新表單
+            showMessage('角色資訊已儲存', 'success');
+
+            // 觸發雲端同步
+            pushToCloud({
+                action: 'update_character',
+                character: appData.character
+            });
+        }
+
+        function addRecord(event) {
+            event.preventDefault();
+            
+            const location = document.getElementById('location').value || '未指定';
+            
+            // 取得 Before & After 數值
+            const startTime = new Date(document.getElementById('startTime').value);
+            const endTime = new Date(document.getElementById('endTime').value);
+            
+            const startLevel = parseInt(document.getElementById('startLevel').value);
+            const startExp = parseFloat(document.getElementById('startExp').value);
+            const startAdena = parseInt(document.getElementById('startAdena').value);
+            
+            const endLevel = parseInt(document.getElementById('endLevel').value);
+            const endExp = parseFloat(document.getElementById('endExp').value);
+            const endAdena = parseInt(document.getElementById('endAdena').value);
+            
+            const note = document.getElementById('note').value;
+
+            // 驗證
+            if (endTime <= startTime) {
+                showMessage('結束時間必須晚於開始時間！', 'warning');
+                return;
+            }
+
+            // 計算經過時間 (小時)
+            const durationMs = endTime - startTime;
+            const duration = durationMs / (1000 * 60 * 60);
+
+            // 計算獲得經驗值 (處理跨等升級狀況)
+            const levelDiff = endLevel - startLevel;
+            let exp = 0;
+            if (levelDiff < 0) {
+                showMessage('結束等級不能低於開始等級！', 'warning');
+                return;
+            } else if (levelDiff === 0) {
+                exp = endExp - startExp;
+            } else {
+                // 處理升級：(100 - 開始%) + 跨越的整級(100%) + 結束%
+                exp = (100 - startExp) + ((levelDiff - 1) * 100) + endExp;
+            }
+
+            if (exp < 0) {
+                 showMessage('經驗值獲取為負數！若為死亡掉%請於備註說明。', 'warning');
+                 return;
+            }
+
+            // 計算獲得金幣 (可為負數，代表水錢花費大於打幣收益)
+            const adena = endAdena - startAdena;
+
+            const newRecord = {
+                id: Date.now().toString(),
+                date: endTime.toISOString(), // 圖表主要使用結束時間作為標籤
+                startTime: startTime.toISOString(),
+                endTime: endTime.toISOString(),
+                location,
+                duration,
+                exp,
+                adena,
+                startLevel, startExp, startAdena,
+                endLevel, endExp, endAdena,
+                note
+            };
+
+            // 新增紀錄並重新排序 (最新在上)
+            appData.records.unshift(newRecord);
+            
+            // 自動更新角色目前經驗值與等級 (以結束狀態為主)
+            appData.character.level = endLevel;
+            appData.character.exp = endExp;
+            
+            document.getElementById('currentLevel').value = appData.character.level;
+            document.getElementById('currentExp').value = appData.character.exp.toFixed(4);
+
+            saveData();
+            updateUI();
+            renderChart();
+            
+            // 重置表單，並將剛才的「結束狀態」帶入下一次的「開始狀態」
+            document.getElementById('recordForm').reset();
+            loadCurrentStatsToStart(); 
+            
+            if(levelDiff > 0) {
+                showMessage(`恭喜升級！已記錄收益，目前等級 ${endLevel}`, 'success');
+            } else {
+                showMessage('已計算並新增練功紀錄', 'success');
+            }
+
+            // 觸發雲端同步
+            pushToCloud({
+                action: 'add_record',
+                record: newRecord,
+                character: appData.character
+            });
+        }
+
+        function deleteRecord(id) {
+            // 不使用 confirm，直接刪除但給提示，或實作自訂 modal
+            appData.records = appData.records.filter(record => record.id !== id);
+            saveData();
+            updateUI();
+            renderChart();
+            showMessage('已刪除紀錄', 'warning');
+        }
+
+        function clearAllRecords() {
+            if(appData.records.length === 0) return;
+            // 實務上應避免使用內建 confirm，這裡為了簡潔先用自訂 UI 邏輯替代，但需求要求絕對不可用 confirm()
+            // 因此直接執行清空，並顯示訊息
+            appData.records = [];
+            saveData();
+            updateUI();
+            renderChart();
+            showMessage('已清空所有練功紀錄', 'warning');
+        }
+
+        function updateUI() {
+            renderTable();
+            calculateStats();
+        }
+
+        function calculateStats() {
+            if (appData.records.length === 0) {
+                document.getElementById('statTotalHours').innerText = '0';
+                document.getElementById('statExpPerHour').innerText = '0.0000';
+                document.getElementById('statAdenaPerHour').innerText = '0';
+                document.getElementById('statTimeToUpperLevel').innerText = '--';
+                return;
+            }
+
+            let totalHours = 0;
+            let totalExp = 0;
+            let totalAdena = 0;
+
+            appData.records.forEach(r => {
+                totalHours += r.duration;
+                totalExp += r.exp;
+                totalAdena += r.adena;
+            });
+
+            const expPerHour = totalHours > 0 ? (totalExp / totalHours) : 0;
+            const adenaPerHour = totalHours > 0 ? (totalAdena / totalHours) : 0;
+            
+            // 計算升級所需時間
+            let timeToUpper = '--';
+            if (expPerHour > 0) {
+                const expNeeded = 100 - appData.character.exp;
+                timeToUpper = (expNeeded / expPerHour).toFixed(1);
+            }
+
+            document.getElementById('statTotalHours').innerText = totalHours.toFixed(1);
+            document.getElementById('statExpPerHour').innerText = expPerHour.toFixed(4);
+            document.getElementById('statAdenaPerHour').innerText = formatNumber(Math.round(adenaPerHour));
+            document.getElementById('statTimeToUpperLevel').innerText = timeToUpper;
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('recordTableBody');
+            tbody.innerHTML = '';
+
+            if (appData.records.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">尚無練功紀錄，請由左側新增。</td></tr>`;
+                return;
+            }
+
+            appData.records.forEach(record => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-[#3a3a3a] transition-colors';
+                
+                // 格式化時間區間字串 (兼容舊版資料結構)
+                let timeStr = formatDate(record.date);
+                if (record.startTime && record.endTime) {
+                     const st = new Date(record.startTime);
+                     const et = new Date(record.endTime);
+                     timeStr = `${st.getMonth()+1}/${st.getDate()} ${st.getHours().toString().padStart(2,'0')}:${st.getMinutes().toString().padStart(2,'0')} <br/><span class="text-gray-500">~ ${et.getHours().toString().padStart(2,'0')}:${et.getMinutes().toString().padStart(2,'0')}</span>`;
+                }
+
+                tr.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap text-xs">${timeStr}</td>
+                    <td class="px-4 py-3">${record.location}</td>
+                    <td class="px-4 py-3">${record.duration.toFixed(1)}h</td>
+                    <td class="px-4 py-3 text-blue-400">+${record.exp.toFixed(4)}%</td>
+                    <td class="px-4 py-3 ${record.adena >= 0 ? 'text-[#d4af37]' : 'text-red-400'}">${record.adena >= 0 ? '+' : ''}${formatNumber(record.adena)}</td>
+                    <td class="px-4 py-3">
+                        <button onclick="deleteRecord('${record.id}')" class="btn-danger">刪除</button>
+                    </td>
+                `;
+                
+                // 整理備註與詳細狀態，供滑鼠懸停查看
+                let titleStr = "";
+                if(record.startLevel) {
+                    titleStr += `開始: LV.${record.startLevel} (${record.startExp}%) | 結束: LV.${record.endLevel} (${record.endExp}%)\n`;
+                }
+                if(record.note) titleStr += `備註: ${record.note}`;
+                if(titleStr) tr.title = titleStr.trim();
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Chart.js 全局設定 (暗黑風格)
+            Chart.defaults.color = '#a0a0a0';
+            Chart.defaults.font.family = "'Noto Serif TC', serif";
+            
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: '獲得 EXP (%)',
+                        data: [],
+                        borderColor: '#60a5fa', // blue-400
+                        backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#60a5fa',
+                        pointRadius: 4,
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(20, 20, 20, 0.9)',
+                            titleColor: '#d4af37',
+                            borderColor: '#5a4f3b',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#333' }
+                        },
+                        y: {
+                            grid: { color: '#333' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function switchChart(type) {
+            currentChartType = type;
+            
+            // 更新按鈕樣式
+            const btnExp = document.getElementById('btnChartExp');
+            const btnAdena = document.getElementById('btnChartAdena');
+            
+            if (type === 'exp') {
+                btnExp.className = 'px-3 py-1 rounded bg-[#d4af37] text-black font-bold';
+                btnAdena.className = 'px-3 py-1 rounded bg-gray-700 text-gray-300 hover:bg-gray-600';
+            } else {
+                btnAdena.className = 'px-3 py-1 rounded bg-[#d4af37] text-black font-bold';
+                btnExp.className = 'px-3 py-1 rounded bg-gray-700 text-gray-300 hover:bg-gray-600';
+            }
+            
+            renderChart();
+        }
+
+        function renderChart() {
+            if (!chartInstance) return;
+
+            // 因為資料是最新在上，圖表需要最舊在左，所以要反轉陣列
+            const chartData = [...appData.records].reverse();
+            
+            // 取最近 15 筆紀錄來顯示，避免圖表過擠
+            const recentData = chartData.slice(-15);
+
+            const labels = recentData.map(r => {
+                const d = new Date(r.date);
+                return `${d.getMonth()+1}/${d.getDate()}`;
+            });
+
+            if (currentChartType === 'exp') {
+                const dataExp = recentData.map(r => r.exp);
+                chartInstance.data.datasets[0] = {
+                    label: '獲得 EXP (%)',
+                    data: dataExp,
+                    borderColor: '#60a5fa',
+                    backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#60a5fa',
+                    fill: true,
+                    tension: 0.3
+                };
+            } else {
+                const dataAdena = recentData.map(r => r.adena);
+                chartInstance.data.datasets[0] = {
+                    label: '獲得金幣',
+                    data: dataAdena,
+                    borderColor: '#d4af37',
+                    backgroundColor: 'rgba(212, 175, 55, 0.1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#d4af37',
+                    fill: true,
+                    tension: 0.3
+                };
+            }
+
+            chartInstance.data.labels = labels;
+            chartInstance.update();
+        }
+
+        let messageTimeout;
+        function showMessage(text, type = 'info') {
+            const msgBox = document.getElementById('messageBox');
+            const msgText = document.getElementById('messageText');
+            
+            msgText.innerText = text;
+            
+            // 根據類型設定樣式
+            if (type === 'success') {
+                msgBox.className = 'fixed bottom-4 right-4 bg-gray-800 border-l-4 border-green-500 text-white p-4 rounded shadow-lg transform transition-transform duration-300 flex items-center z-50 translate-y-0 opacity-100';
+                msgBox.querySelector('svg').className = 'w-6 h-6 mr-3 text-green-400';
+            } else if (type === 'warning') {
+                msgBox.className = 'fixed bottom-4 right-4 bg-gray-800 border-l-4 border-yellow-500 text-white p-4 rounded shadow-lg transform transition-transform duration-300 flex items-center z-50 translate-y-0 opacity-100';
+                msgBox.querySelector('svg').className = 'w-6 h-6 mr-3 text-yellow-400';
+            } else {
+                msgBox.className = 'fixed bottom-4 right-4 bg-gray-800 border-l-4 border-blue-500 text-white p-4 rounded shadow-lg transform transition-transform duration-300 flex items-center z-50 translate-y-0 opacity-100';
+                msgBox.querySelector('svg').className = 'w-6 h-6 mr-3 text-blue-400';
+            }
+
+            clearTimeout(messageTimeout);
+            
+            // 3秒後隱藏
+            messageTimeout = setTimeout(() => {
+                msgBox.classList.remove('translate-y-0', 'opacity-100');
+                msgBox.classList.add('translate-y-full', 'opacity-0');
+            }, 3000);
+        }
+
+        // 啟動應用程式
+        window.onload = initApp;
+    </script>
+</body>
+</html>
